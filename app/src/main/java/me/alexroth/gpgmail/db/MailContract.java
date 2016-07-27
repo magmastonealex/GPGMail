@@ -35,6 +35,7 @@ public final class MailContract {
     public static abstract class MailStatus implements BaseColumns{
         public static final String TABLE_NAME = "status";
         public static final String MAIL_UIDVALIDITY = "uid_validity";
+        public static final String MAIL_UIDNEXT = "uid_next";
         public static final String MAIL_FOLDER = "folder";
     }
 }

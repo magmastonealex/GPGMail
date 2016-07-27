@@ -2,6 +2,7 @@ package me.alexroth.gpgmail.mailfetchers;
 
 import android.util.Log;
 
+import com.libmailcore.ConnectionLogger;
 import com.libmailcore.ConnectionType;
 import com.libmailcore.IMAPFetchFoldersOperation;
 import com.libmailcore.IMAPFetchMessagesOperation;
@@ -49,7 +50,6 @@ public class ImapHandler {
         session.setHostname(host);
         session.setPort(port);
         session.setConnectionType(ConnectionType.ConnectionTypeTLS);
-
 
         IMAPFolderStatusOperation op1 = session.folderStatusOperation("INBOX");
         op1.status().uidValidity();

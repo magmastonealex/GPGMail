@@ -5,7 +5,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
 /**
- * CLASS DESCRIPTION
+ * Database helper class. Provides a reference to a populated DB.
  *
  * @author alex
  * @since 7/26/16
@@ -27,15 +27,16 @@ public class MailDbHelper extends SQLiteOpenHelper {
                     MailContract.MailEntry.MAIL_SHORT + TEXT_TYPE + SEP +
                     MailContract.MailEntry.MAIL_SUBJECT + TEXT_TYPE + SEP +
                     MailContract.MailEntry.MAIL_FOLDER + TEXT_TYPE + SEP +
-                    MailContract.MailEntry.MAIL_GPG_STATUS + " INTEGER" + SEP +
+                    MailContract.MailEntry.MAIL_GPG_STATUS + TEXT_TYPE + SEP +
                     MailContract.MailEntry.MAIL_UID + TEXT_TYPE + SEP +
                     MailContract.MailEntry.MAIL_FLAGS + TEXT_TYPE + SEP +
-                    MailContract.MailEntry.MAIL_SYNCED + " INTEGER" + SEP +
+                    MailContract.MailEntry.MAIL_SYNCED + TEXT_TYPE + SEP +
                     " )";
     private static final String SQL_CREATE_STATUS_TABLE =
             "CREATE TABLE" + MailContract.MailStatus.TABLE_NAME + " ("+
                     MailContract.MailStatus._ID + " INTEGER PRIMARY KEY,"+
                     MailContract.MailStatus.MAIL_UIDVALIDITY + LONG_TYPE + SEP +
+                    MailContract.MailStatus.MAIL_UIDNEXT + LONG_TYPE + SEP +
                     MailContract.MailStatus.MAIL_FOLDER + TEXT_TYPE + SEP +
                     " )";
 
