@@ -37,5 +37,6 @@ public final class MailContract {
         public static final String MAIL_UIDVALIDITY = "uid_validity";
         public static final String MAIL_UIDNEXT = "uid_next";
         public static final String MAIL_FOLDER = "folder";
+        public static final String MAIL_MAXUID = "max_uid";
     }
 }

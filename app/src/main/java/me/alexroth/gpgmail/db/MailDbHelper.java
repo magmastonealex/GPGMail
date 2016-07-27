@@ -37,6 +37,7 @@ public class MailDbHelper extends SQLiteOpenHelper {
                     MailContract.MailStatus._ID + " INTEGER PRIMARY KEY,"+
                     MailContract.MailStatus.MAIL_UIDVALIDITY + LONG_TYPE + SEP +
                     MailContract.MailStatus.MAIL_UIDNEXT + LONG_TYPE + SEP +
+                    MailContract.MailStatus.MAIL_MAXUID + LONG_TYPE + SEP +
                     MailContract.MailStatus.MAIL_FOLDER + TEXT_TYPE + SEP +
                     " )";
 

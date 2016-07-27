@@ -16,32 +16,23 @@ import com.libmailcore.MailException;
 import com.libmailcore.OperationCallback;
 import com.libmailcore.Range;
 
+import me.alexroth.gpgmail.db.MailDbHelper;
+
 /**
- * Simple IMAP mail fetcher.
+ * IMAP synchronization implementation & message fetching.
  *
  * @author alex
  * @since 7/25/16
  */
 public class ImapHandler {
     public static final String TAG = "ImapHandler";
-    // Things that a consumer would need to know:
-    // First message sequence number (to know to fetch, say, 300 back from that)
-    // First message uid (to know where to start fetching from)
 
 
-    // How to create a list of emails:
-    // Initial:
-    // Get all emails to find the max UID of all of them.
-    // Use that to find a sequence number.
-    // This sequence number can be used to fetch, say, the next 50 emails.
-    // Save the UID as the last fetched email.
-    //
-    // Every other iteration:
-    // Get the last-fetched UID
-    // Fetch from that UID to the new max UID
-    // Save that UID
-    // Repeat with sequence number to get the rest of the emails.
-    //
+    public IMAPSession session;
+
+    /**
+     * ImapHandler acts as a frontend to the Imap mail system. It doesn't implement the synchronization at all. Does not take connection options, though it probably should.
+     */
     public ImapHandler(String username, String password, int port, String host){
         final IMAPSession session = new IMAPSession();
 
@@ -51,31 +42,8 @@ public class ImapHandler {
         session.setPort(port);
         session.setConnectionType(ConnectionType.ConnectionTypeTLS);
 
-        IMAPFolderStatusOperation op1 = session.folderStatusOperation("INBOX");
-        op1.status().uidValidity();
-
-        final IMAPFetchMessagesOperation op = session.fetchMessagesByUIDOperation("INBOX", IMAPMessagesRequestKind.IMAPMessagesRequestKindHeaders, IndexSet.indexSetWithRange(new Range(11900, Range.RangeMax)));
-        op.start(new OperationCallback() {
-            @Override
-            public void succeeded() {
-                Log.i(TAG, "Success fetching all messages");
-                long maxUid = 0;
-                for (IMAPMessage message : op.messages()) {
-                    if(message.uid() > maxUid){
-                        maxUid = message.uid();
-                    }
-
-                    Log.i(TAG, "test:" + message.header().subject()+ " " + message.sequenceNumber());
-                }
-                Log.i(TAG, "Completion: " + maxUid);
-            }
-
-            @Override
-            public void failed(MailException e) {
-                Log.e(TAG, "Failure fetching" + e.getLocalizedMessage());
-            }
-        });
-
-
+        this.session = session;
     }
+
+
 }

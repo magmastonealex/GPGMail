@@ -23,6 +23,7 @@ public class MailInfo {
         GPG_STATUS_CLEARSIGN_UNVERIFIED,
         GPG_STATUS_ENCRYPTED,
         GPG_STATUS_CLEARSIGN_VALID,
+        GPG_STATUS_UNKNOWN,
     }
 
     /**
@@ -30,6 +31,8 @@ public class MailInfo {
      */
     public enum SyncStatus {
         SYNC_STATUS_FULL,
+        SYNC_STATUS_NEED_CONTENT,
+        SYNC_STATUS_NEED_ATTACHMENTS,
         SYNC_STATUS_DELETED,
         SYNC_STATUS_FLAGSUPDATE,
         SYNC_STATUS_PURGED,
