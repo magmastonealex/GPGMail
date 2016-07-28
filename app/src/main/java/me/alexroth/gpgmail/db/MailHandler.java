@@ -4,6 +4,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,8 +16,7 @@ import java.util.List;
  * @since 7/26/16
  */
 public class MailHandler {
-    private MailDbHelper helper;
-
+    public MailDbHelper helper;
 
     public MailHandler(Context c) {
         helper = new MailDbHelper(c);
@@ -60,31 +60,109 @@ public class MailHandler {
         values.put(MailContract.MailEntry.MAIL_FLAGS, builder.toString());
         values.put(MailContract.MailEntry.MAIL_SYNCED, m.syncStatus.toString());
 
-        db.insert(MailContract.MailEntry.TABLE_NAME, null, values);
+        db.insertOrThrow(MailContract.MailEntry.TABLE_NAME, null, values);
     }
+
+    /**
+     * Update a message in the DB. (should probably have transaction support at some point.)
+     *
+     * @param m  The message to insert
+     * @param db The DB (possible in a transaction state) to insert using.
+     */
+    public void updateMessage(CompactMessage m, long uid, String folder, SQLiteDatabase db) {
+
+
+
+        ContentValues values = new ContentValues();
+        values.put(MailContract.MailEntry.MAIL_DATE_RECEIVED, m.dateReceived);
+        values.put(MailContract.MailEntry.MAIL_SUBJECT, m.subject);
+        values.put(MailContract.MailEntry.MAIL_FROM_EMAIL, m.fromEmail);
+        values.put(MailContract.MailEntry.MAIL_FROM_NAME, m.fromName);
+        values.put(MailContract.MailEntry.MAIL_SHORT, m.shortDescription);
+        values.put(MailContract.MailEntry.MAIL_FOLDER, m.folder);
+        values.put(MailContract.MailEntry.MAIL_GPG_STATUS, m.gpgStatus.toString());
+        values.put(MailContract.MailEntry.MAIL_UID, m.uid);
+        StringBuilder builder = new StringBuilder();
+        boolean first = true;
+        for (String s : m.flags) {
+            if (!first) {
+                builder.append(" ");
+            } else {
+                first = false;
+            }
+            builder.append(s);
+        }
+        values.put(MailContract.MailEntry.MAIL_FLAGS, builder.toString());
+        values.put(MailContract.MailEntry.MAIL_SYNCED, m.syncStatus.toString());
+
+        String whereClause = MailContract.MailEntry.MAIL_UID + " LIKE ? AND " + MailContract.MailEntry.MAIL_FOLDER + " LIKE ?";
+        String[] whereClauseArgs = {Long.toString(uid),folder};
+
+        db.update(MailContract.MailEntry.TABLE_NAME,values,whereClause,whereClauseArgs);
+    }
+
+    public void updateMessage(CompactMessage m, long uid, String folder){
+        SQLiteDatabase db = helper.getWritableDatabase();
+        updateMessage(m,uid,folder,db);
+    }
+
 
     /**
      * Add an array of messages to the DB in a single exclusive transaction.
      */
-    public void addMessagesAsTransaction(CompactMessage[] messages) {
+    public boolean addMessagesAsTransaction(CompactMessage[] messages) {
         SQLiteDatabase db = helper.getWritableDatabase();
+        boolean success = false;
         db.beginTransaction();
-        for (CompactMessage message : messages) {
-            addMessage(message, db);
+        try {
+            for (CompactMessage message : messages) {
+                if(getDoesMessageExist(message.uid,message.folder)){
+                    Log.e("DBWrapper", "Tried to add existing message! (did you mean to update?)");
+                }else {
+                    addMessage(message, db);
+                }
+            }
+            success = true;
+            db.setTransactionSuccessful();
+        }catch(Exception e){
+            Log.e("DBwrapper", "Exception in transaction: " +e.getLocalizedMessage());
         }
         db.endTransaction();
+        return success;
+    }
+
+    public boolean getDoesMessageExist(long uid, String folderName){
+        String[] projection = {
+                MailContract.MailEntry.MAIL_UID,
+        };
+        String sortOrder = MailContract.MailEntry.MAIL_UID + " ASC";
+
+        Cursor c = helper.getReadableDatabase().query(MailContract.MailEntry.TABLE_NAME, projection, MailContract.MailEntry.MAIL_FOLDER + " LIKE ? AND "+ MailContract.MailEntry.MAIL_UID +" LIKE ?", new String[] {folderName, Long.toString(uid)}, null, null, sortOrder, "1");
+        return c.getCount() > 0;
     }
 
     /**
      * Add a list of messages to the DB in a single exclusive transaction.
      */
-    public void addMessagesAsTransaction(List<CompactMessage> messages) {
+    public boolean addMessagesAsTransaction(List<CompactMessage> messages) {
         SQLiteDatabase db = helper.getWritableDatabase();
+        boolean success = false;
         db.beginTransaction();
-        for (CompactMessage message : messages) {
-            addMessage(message, db);
+        try {
+            for (CompactMessage message : messages) {
+                if(getDoesMessageExist(message.uid,message.folder)){
+                    Log.e("DBWrapper", "Tried to add existing message! (did you mean to update?)");
+                }else {
+                    addMessage(message, db);
+                }
+            }
+            success = true;
+            db.setTransactionSuccessful();
+        }catch(Throwable e){
+            Log.e("DBwrapper", "Exception in transaction: " +e.getLocalizedMessage());
         }
         db.endTransaction();
+        return success;
     }
 
     /**
@@ -93,7 +171,7 @@ public class MailHandler {
      * @param order The order to use
      * @return A MessageCursor which is open and can be used to get the data out.
      */
-    public MessageCursor getMessageCursorForSortOrder(MailInfo.MailSortOrder order) {
+    public MessageCursor getMessageCursorForSortOrderAndFolder(MailInfo.MailSortOrder order, String folder) {
         String[] projection = {
                 MailContract.MailEntry.MAIL_DATE_RECEIVED,
                 MailContract.MailEntry.MAIL_SUBJECT,
@@ -110,8 +188,32 @@ public class MailHandler {
         if (order == MailInfo.MailSortOrder.SORT_ORDER_RECENT) {
             sortOrder = MailContract.MailEntry.MAIL_DATE_RECEIVED + " DESC";
         }
-        Cursor c = helper.getReadableDatabase().query(MailContract.MailEntry.TABLE_NAME, projection, null, null, null, null, sortOrder);
+        Cursor c = helper.getReadableDatabase().query(MailContract.MailEntry.TABLE_NAME, projection, MailContract.MailEntry.MAIL_FOLDER + " LIKE ?", new String[] {folder}, null, null, sortOrder);
         return new MessageCursor(c);
+    }
+
+    public CompactMessage getOldestMessageInFolder(String folderName){
+        String[] projection = {
+                MailContract.MailEntry.MAIL_DATE_RECEIVED,
+                MailContract.MailEntry.MAIL_SUBJECT,
+                MailContract.MailEntry.MAIL_FROM_EMAIL,
+                MailContract.MailEntry.MAIL_FROM_NAME,
+                MailContract.MailEntry.MAIL_SHORT,
+                MailContract.MailEntry.MAIL_FOLDER,
+                MailContract.MailEntry.MAIL_GPG_STATUS,
+                MailContract.MailEntry.MAIL_UID,
+                MailContract.MailEntry.MAIL_FLAGS,
+                MailContract.MailEntry.MAIL_SYNCED,
+        };
+        String sortOrder = MailContract.MailEntry.MAIL_UID + " ASC";
+
+        Cursor c = helper.getReadableDatabase().query(MailContract.MailEntry.TABLE_NAME, projection, MailContract.MailEntry.MAIL_FOLDER + " LIKE ?", new String[] {folderName}, null, null, sortOrder, "1");
+        MessageCursor cursor =  new MessageCursor(c);
+        CompactMessage mess = cursor.getNext();
+        cursor.close();
+
+        return mess;
+
     }
 
     /**
@@ -130,17 +232,23 @@ public class MailHandler {
         String sortOrder = MailContract.MailEntry.MAIL_FOLDER + " DESC";
 
         Cursor c = helper.getReadableDatabase().query(MailContract.MailStatus.TABLE_NAME,projection, MailContract.MailStatus.MAIL_FOLDER+" LIKE ?", new String[] {folderName},null,null,sortOrder);
+        for(String col : c.getColumnNames()){
+            Log.e("MailHandler", "AllCs:" + col);
+        }
 
         if(c.getCount() > 0) {
-
+            c.moveToFirst();
             CachedFolder folder = new CachedFolder();
-
+            //try {
             folder.folder = folderName;
             folder.uid_next = c.getLong(c.getColumnIndex(MailContract.MailStatus.MAIL_UIDNEXT));
             folder.uid_validity = c.getLong(c.getColumnIndex(MailContract.MailStatus.MAIL_UIDVALIDITY));
             folder.max_uid = c.getLong(c.getColumnIndex(MailContract.MailStatus.MAIL_MAXUID));
             c.close();
             return folder;
+            /*}catch(Exception e){
+                return null;
+            }*/
         }else{
             return null;
         }
@@ -172,9 +280,39 @@ public class MailHandler {
         values.put(MailContract.MailStatus.MAIL_MAXUID,folder.max_uid);
         values.put(MailContract.MailStatus.MAIL_FOLDER, folder.folder);
 
-        helper.getWritableDatabase().insert(MailContract.MailStatus.TABLE_NAME,null,values);
+        helper.getWritableDatabase().insertOrThrow(MailContract.MailStatus.TABLE_NAME,null,values);
 
     }
+
+    public void deleteMessageInFolderWithUid(String folder, long uid){
+        helper.getWritableDatabase().delete(MailContract.MailEntry.TABLE_NAME, MailContract.MailEntry.MAIL_UID+ " LIKE ? AND " + MailContract.MailEntry.MAIL_FOLDER + " LIKE ?", new String[] {Long.toString(uid), folder});
+    }
+
+
+    public CompactMessage getMessageWithFolderAndUid(String folderName, long uid){
+        String[] projection = {
+                MailContract.MailEntry.MAIL_DATE_RECEIVED,
+                MailContract.MailEntry.MAIL_SUBJECT,
+                MailContract.MailEntry.MAIL_FROM_EMAIL,
+                MailContract.MailEntry.MAIL_FROM_NAME,
+                MailContract.MailEntry.MAIL_SHORT,
+                MailContract.MailEntry.MAIL_FOLDER,
+                MailContract.MailEntry.MAIL_GPG_STATUS,
+                MailContract.MailEntry.MAIL_UID,
+                MailContract.MailEntry.MAIL_FLAGS,
+                MailContract.MailEntry.MAIL_SYNCED,
+        };
+        String sortOrder = MailContract.MailEntry.MAIL_UID + " DESC";
+
+        Cursor c = helper.getReadableDatabase().query(MailContract.MailEntry.TABLE_NAME, projection, MailContract.MailEntry.MAIL_FOLDER + " LIKE ? AND " + MailContract.MailEntry.MAIL_UID + " LIKE ?", new String[] {folderName, Long.toString(uid)}, null, null, sortOrder, "1");
+        MessageCursor cursor =  new MessageCursor(c);
+        CompactMessage mess = cursor.getNext();
+        cursor.close();
+
+        return mess;
+
+    }
+
 
     /**
      * Delete a folder and all of it's cached mail. Folder does not have to exist.
@@ -194,8 +332,8 @@ public class MailHandler {
      * @param order Sort order to use
      * @return An array of messages.
      */
-    public CompactMessage[] getMessagesArrayForSortOrder(MailInfo.MailSortOrder order) {
-        MessageCursor cursor = getMessageCursorForSortOrder(order);
+    public CompactMessage[] getMessagesArrayForSortOrderAndFolder(MailInfo.MailSortOrder order, String folder) {
+        MessageCursor cursor = getMessageCursorForSortOrderAndFolder(order, folder);
         CompactMessage[] messages = new CompactMessage[cursor.getCount()];
         for (int i = 0; i < cursor.getCount(); i++) {
             messages[i] = cursor.getNext();

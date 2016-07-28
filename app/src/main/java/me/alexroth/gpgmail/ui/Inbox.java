@@ -11,7 +11,10 @@ import android.view.MenuItem;
 
 
 import me.alexroth.gpgmail.R;
+import me.alexroth.gpgmail.db.MailDbHelper;
+import me.alexroth.gpgmail.db.MailHandler;
 import me.alexroth.gpgmail.mailfetchers.ImapHandler;
+import me.alexroth.gpgmail.mailfetchers.ImapSynchronizer;
 
 public class Inbox extends AppCompatActivity {
 
@@ -31,7 +34,9 @@ public class Inbox extends AppCompatActivity {
             }
         });
         ImapHandler handler = new ImapHandler("alex@magmastone.net", "3m3zwiiear0b", 993, "imappro.zoho.com");
-
+        MailHandler mailHandler = new MailHandler(getApplicationContext());
+        ImapSynchronizer synchronizer = new ImapSynchronizer(mailHandler,handler.session);
+        synchronizer.sync("INBOX");
     }
 
     @Override

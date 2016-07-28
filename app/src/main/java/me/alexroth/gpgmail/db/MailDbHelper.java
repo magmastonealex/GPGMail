@@ -19,8 +19,8 @@ public class MailDbHelper extends SQLiteOpenHelper {
     private static final String LONG_TYPE = " UNSIGNED BIG INT";
     private static final String SEP = ",";
     private static final String SQL_CREATE_MAIL_TABLE =
-            "CREATE TABLE" + MailContract.MailEntry.TABLE_NAME + " ("+
-                    MailContract.MailEntry._ID + " INTEGER PRIMARY KEY,"+
+            "CREATE TABLE " + MailContract.MailEntry.TABLE_NAME + " ("+
+                    MailContract.MailEntry._ID + " INTEGER,"+
                     MailContract.MailEntry.MAIL_DATE_RECEIVED + LONG_TYPE + SEP +
                     MailContract.MailEntry.MAIL_FROM_EMAIL + TEXT_TYPE + SEP +
                     MailContract.MailEntry.MAIL_FROM_NAME + TEXT_TYPE + SEP +
@@ -28,17 +28,17 @@ public class MailDbHelper extends SQLiteOpenHelper {
                     MailContract.MailEntry.MAIL_SUBJECT + TEXT_TYPE + SEP +
                     MailContract.MailEntry.MAIL_FOLDER + TEXT_TYPE + SEP +
                     MailContract.MailEntry.MAIL_GPG_STATUS + TEXT_TYPE + SEP +
-                    MailContract.MailEntry.MAIL_UID + TEXT_TYPE + SEP +
+                    MailContract.MailEntry.MAIL_UID  + LONG_TYPE + " PRIMARY KEY" + SEP +
                     MailContract.MailEntry.MAIL_FLAGS + TEXT_TYPE + SEP +
-                    MailContract.MailEntry.MAIL_SYNCED + TEXT_TYPE + SEP +
+                    MailContract.MailEntry.MAIL_SYNCED + TEXT_TYPE +
                     " )";
     private static final String SQL_CREATE_STATUS_TABLE =
-            "CREATE TABLE" + MailContract.MailStatus.TABLE_NAME + " ("+
+            "CREATE TABLE " + MailContract.MailStatus.TABLE_NAME + " ("+
                     MailContract.MailStatus._ID + " INTEGER PRIMARY KEY,"+
                     MailContract.MailStatus.MAIL_UIDVALIDITY + LONG_TYPE + SEP +
                     MailContract.MailStatus.MAIL_UIDNEXT + LONG_TYPE + SEP +
                     MailContract.MailStatus.MAIL_MAXUID + LONG_TYPE + SEP +
-                    MailContract.MailStatus.MAIL_FOLDER + TEXT_TYPE + SEP +
+                    MailContract.MailStatus.MAIL_FOLDER + TEXT_TYPE+
                     " )";
 
 
