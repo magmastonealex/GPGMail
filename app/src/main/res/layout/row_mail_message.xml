@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:fresco="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="60dp">
+    <com.facebook.drawee.view.SimpleDraweeView
+        android:id="@+id/profilePic"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_centerVertical="true"
+        android:layout_marginLeft="16dp"
+        android:layout_marginRight="16dp"
+        fresco:placeholderImage="@drawable/ic_person_black_24dp"
+        fresco:roundAsCircle="true"/>
+    <TextView
+        android:id="@+id/sender"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Alex Roth"
+        android:textSize="16sp"
+        android:layout_toRightOf="@id/profilePic"
+        android:layout_marginTop="5dp"
+        />
+    <ImageView
+        android:id="@+id/signStatus"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_new_releases_black_24dp"
+        android:layout_alignTop="@+id/sender"
+        android:layout_alignParentRight="true"/>
+    <ImageView
+        android:id="@+id/encStatus"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_lock_open_black_24dp"
+        android:layout_alignTop="@+id/sender"
+        android:layout_toLeftOf="@+id/signStatus"/>
+    <TextView
+        android:id="@+id/subject"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Test Subject"
+        android:fontFamily="sans-serif-medium"
+        android:textSize="14sp"
+        android:layout_alignLeft="@+id/sender"
+        android:layout_below="@+id/sender"/>
+    <TextView
+        android:id="@+id/description"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Description Text"
+        android:layout_below="@+id/subject"
+        android:layout_alignLeft="@+id/sender"/>
+</RelativeLayout>

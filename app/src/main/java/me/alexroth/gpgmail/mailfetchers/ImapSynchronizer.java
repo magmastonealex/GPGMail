@@ -1,7 +1,5 @@
 package me.alexroth.gpgmail.mailfetchers;
 
-import android.content.Context;
-import android.content.Intent;
 import android.util.Log;
 
 import com.libmailcore.IMAPFetchContentOperation;
@@ -10,16 +8,13 @@ import com.libmailcore.IMAPFolderInfo;
 import com.libmailcore.IMAPFolderInfoOperation;
 import com.libmailcore.IMAPMessage;
 import com.libmailcore.IMAPMessagesRequestKind;
-import com.libmailcore.IMAPOperationItemProgressListener;
 import com.libmailcore.IMAPSession;
 import com.libmailcore.IndexSet;
 import com.libmailcore.MailException;
-import com.libmailcore.MessageFlag;
 import com.libmailcore.MessageParser;
 import com.libmailcore.OperationCallback;
 import com.libmailcore.Range;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -51,7 +46,7 @@ public class ImapSynchronizer {
         this.session = session;
     }
 
-    public void sync(final String folder){
+    public void sync(final String folder, final CompletionCallback callback){
         final CachedFolder dbfolder = dbHandler.getFolderForName(folder);
         final long uidvalidity = dbfolder == null ? -1 : dbfolder.uid_validity;
 
@@ -63,21 +58,22 @@ public class ImapSynchronizer {
                 Log.i(TAG, "Info fetch success, validity" + info.uidValidity());
                 if(info.uidValidity() != uidvalidity){
                     Log.i(TAG, "Wiping folder, starting fresh");
-                    clearAndResync(folder,info);
+                    clearAndResync(folder,info, callback);
                 }else{
                     Log.i(TAG, "Synchronizing folder");
-                    downloadSync(info,dbfolder);
+                    downloadSync(info,dbfolder, callback);
                 }
             }
 
             @Override
             public void failed(MailException e) {
                 //TODO: handle
+                callback.error(e.getLocalizedMessage());
             }
         });
     }
 
-    public void clearAndResync(final String folder, final IMAPFolderInfo info){
+    public void clearAndResync(final String folder, final IMAPFolderInfo info, final CompletionCallback callback){
         dbHandler.deleteFolder(folder);
         final CachedFolder newFolder = new CachedFolder();
         newFolder.folder=folder;
@@ -97,13 +93,15 @@ public class ImapSynchronizer {
                     fetchByPosOp.start(new OperationCallback() {
                         @Override
                         public void succeeded() {
-                            addAndUpdateFolder(newFolder,fetchByPosOp.messages(), info);
+                            addMessagesAndUpdateFolder(newFolder,fetchByPosOp.messages(), info);
+                            callback.complete();
                         }
 
                         @Override
                         public void failed(MailException e) {
                             //At this point, we basically can't do anything but destroy the folder and hope for the best.
                             dbHandler.deleteFolder(folder);
+                            callback.error(e.getLocalizedMessage());
                         }
                     });
                 }
@@ -114,11 +112,12 @@ public class ImapSynchronizer {
                 //At this point, we basically can't do anything but destroy the folder and hope for the best.
                 //So then the known state is that we can retry sync when we have a good chance at being successful.
                 dbHandler.deleteFolder(folder);
+                callback.error(e.getLocalizedMessage());
             }
         });
 
     }
-    private void addAndUpdateFolder(CachedFolder folder, List<IMAPMessage> messages, IMAPFolderInfo info){
+    private void addMessagesAndUpdateFolder(CachedFolder folder, List<IMAPMessage> messages, IMAPFolderInfo info){
         ArrayList<CompactMessage> readyMessages = new ArrayList<CompactMessage>(messages.size());
         int i = 0;
         int total = messages.size();
@@ -160,8 +159,9 @@ public class ImapSynchronizer {
                 Log.e(TAG, "Didn't add to DB?");
             } else {
                 Log.e(TAG, "Added up to UID: " + maxUid);
+                folder.max_uid = maxUid;
             }
-            folder.max_uid = maxUid;
+
             folder.uid_validity=info.uidValidity();
             dbHandler.updateFolder(folder);
         }else{
@@ -170,7 +170,7 @@ public class ImapSynchronizer {
         }
     }
 
-    public void downloadSync(final IMAPFolderInfo info, final CachedFolder folder){
+    public void downloadSync(final IMAPFolderInfo info, final CachedFolder folder, final CompletionCallback callback){
         //Fetch in forward direction - all new emails.
         if(info.uidNext() != folder.uid_next) {
             final IMAPFetchMessagesOperation fetchOp = session.fetchMessagesByUIDOperation(folder.folder, IMAPMessagesRequestKind.IMAPMessagesRequestKindFlags | IMAPMessagesRequestKind.IMAPMessagesRequestKindHeaders, IndexSet.indexSetWithRange(new Range(folder.max_uid+1, Range.RangeMax)));
@@ -179,10 +179,9 @@ public class ImapSynchronizer {
                 public void succeeded() {
                     List<IMAPMessage> messages = fetchOp.messages();
                     long oldUid = folder.max_uid;
-                    addAndUpdateFolder(folder, messages, info);
+                    addMessagesAndUpdateFolder(folder, messages, info);
                     //TODO: Trim based on date. Don't want to keep > 100 emails or so at a time.
-                    updateOldMessages(info, folder, oldUid);
-
+                    updateOldMessages(info, folder, oldUid, callback);
                 }
 
                 @Override
@@ -192,14 +191,14 @@ public class ImapSynchronizer {
             });
         }else{
             Log.e(TAG, "Skipping fetching new messages, refreshing old cached.");
-            updateOldMessages(info,folder,folder.max_uid);
+            updateOldMessages(info,folder,folder.max_uid, callback);
         }
 
     }
 
-    public void updateOldMessages(IMAPFolderInfo info, final CachedFolder folder, final long oldUidMax){
+    public void updateOldMessages(final IMAPFolderInfo info, final CachedFolder folder, final long oldUidMax, final CompletionCallback callback){
         CompactMessage oldMessage = dbHandler.getOldestMessageInFolder(folder.folder);
-        Log.e(TAG, "Got old message with uid" + oldMessage.uid);
+        Log.e(TAG, "Got old message with uid" + oldMessage.uid + " fetching with folder UID: " + folder.max_uid);
         final IMAPFetchMessagesOperation fetchOp = session.fetchMessagesByUIDOperation(folder.folder, IMAPMessagesRequestKind.IMAPMessagesRequestKindFlags, IndexSet.indexSetWithRange(new Range(oldMessage.uid, folder.max_uid)));
         fetchOp.start(new OperationCallback() {
             @Override
@@ -227,17 +226,26 @@ public class ImapSynchronizer {
                         dbMessage.flags = flags;
                     }
 
-                    Log.e(TAG, "Updating message:" +dbMessage.subject);
+                    //Log.e(TAG, "Updating message:" +dbMessage.subject);
                     for(String s: dbMessage.flags){
-                        Log.e(TAG, "   Flag: "+s);
+                        //Log.e(TAG, "   Flag: "+s);
                     }
                     dbHandler.updateMessage(dbMessage,message.uid(),folder.folder);
 
                 }
                 Log.e(TAG, "Remaining messages: " + messageUids.size());
+                if(Math.abs(messageUids.size() - messages.length) < 5){
+                    //It seems kinda unlikey that we actually deleted almost everything.
+                    //So lets wipe everything and redo.
+                    //TODO: Figure out why this happens and fix it!
+                    Log.e(TAG, "Looks like we just deleted the whole inbox again...");
+                    //clearAndResync(folder.folder,info);
+                    //return;
+                }
                 for(long l : messageUids){
                     dbHandler.deleteMessageInFolderWithUid(folder.folder,l);
                 }
+                callback.complete();
             }
 
             @Override
@@ -253,13 +261,37 @@ public class ImapSynchronizer {
      * Does so transactionally - if the error callback is called, then all the changes will have already been rolled back, so you can rely on that to keep state about which messages still need data.
      */
     public void fetchHeaders(long messageLowerUid, long messageUpperUid, final String folder, final CompletionCallback callback){
-        final IMAPFetchMessagesOperation fetchOp = session.fetchMessagesByUIDOperation(folder, IMAPMessagesRequestKind.IMAPMessagesRequestKindUid, IndexSet.indexSetWithRange(new Range(messageLowerUid, messageUpperUid)));
+        final IMAPFetchMessagesOperation fetchOp = session.fetchMessagesByUIDOperation(folder, IMAPMessagesRequestKind.IMAPMessagesRequestKindStructure | IMAPMessagesRequestKind.IMAPMessagesRequestKindSize, IndexSet.indexSetWithRange(new Range(messageLowerUid, messageUpperUid)));
         fetchOp.start(new OperationCallback() {
             @Override
             public void succeeded() {
                 for(IMAPMessage message : fetchOp.messages()){
                     //Hmm, this is hard.
                     //We want to fetch a summary here, but if we're not careful we'll also download all the attachments, which could potentially be massive.
+                    Log.e(TAG, "Part mime type: " +message.mainPart().mimeType());
+                    String mimeType = message.mainPart().mimeType();
+                    if(mimeType.equals("multipart/ENCRYPTED")){
+                        Log.e(TAG, "Encrypted message - can't download contents in advance.");
+                    }else if(message.size() > 20000){
+                        Log.e(TAG, "Massive main section - don't want to download.");
+                    }else{
+                        Log.i(TAG, "Attempting to download main message content....");
+                        final IMAPFetchContentOperation contentOp = session.fetchMessageByUIDOperation(folder, message.uid());
+                        contentOp.start(new OperationCallback() {
+                            @Override
+                            public void succeeded() {
+                                MessageParser parser = MessageParser.messageParserWithData(contentOp.data());
+                                Log.e(TAG, "Message content: " + new String(parser.data()));
+                            }
+
+                            @Override
+                            public void failed(MailException e) {
+
+                            }
+                        });
+                    }
+
+
                 }
             }
 
