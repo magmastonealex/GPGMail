@@ -29,6 +29,8 @@ import me.alexroth.gpgmail.mailfetchers.ImapSynchronizer;
 
 public class Inbox extends AppCompatActivity {
 
+    private static final String TAG = "InboxActivity";
+    MailHandler mailHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,7 +40,7 @@ public class Inbox extends AppCompatActivity {
         setSupportActionBar(toolbar);
 
         ImapHandler handler = new ImapHandler("alex@magmastone.net", "3m3zwiiear0b", 993, "imappro.zoho.com");
-        final MailHandler mailHandler = new MailHandler(getApplicationContext());
+        mailHandler = new MailHandler(getApplicationContext());
         final ImapSynchronizer synchronizer = new ImapSynchronizer(mailHandler,handler.session);
         final MailAdapter adapter = new MailAdapter(mailHandler);
 
@@ -54,8 +56,13 @@ public class Inbox extends AppCompatActivity {
                     }
 
                     @Override
+                    public void progress() {
+
+                    }
+
+                    @Override
                     public void error(String error) {
-                        Log.e("INBOX", "Failed  sync: " +error);
+                        Log.e(TAG, "Failed  sync: " +error);
                     }
                 });
 
@@ -73,19 +80,30 @@ public class Inbox extends AppCompatActivity {
                 synchronizer.fetchHeaders(fromUid, toUid, "INBOX", new ImapSynchronizer.CompletionCallback() {
                     @Override
                     public void complete() {
+                        Log.i(TAG, "Header fetch complete");
+                        doGpgVerification();
+                    }
 
+                    @Override
+                    public void progress() {
+                        adapter.refresh();
                     }
 
                     @Override
                     public void error(String error) {
-
+                        Log.e(TAG, "Failed headers: " +error);
                     }
                 });
             }
 
             @Override
+            public void progress() {
+
+            }
+
+            @Override
             public void error(String error) {
-                Log.e("INBOX", "Failed  sync: " +error);
+                Log.e(TAG, "Failed  sync: " +error);
             }
         });
 
@@ -94,6 +112,14 @@ public class Inbox extends AppCompatActivity {
         RecyclerView rView = (RecyclerView) findViewById(R.id.mail);
         rView.setLayoutManager(llm);
         rView.setAdapter(adapter);
+    }
+
+    private void doGpgVerification(){
+        Log.i(TAG, "Starting verification...");
+
+        CompactMessage[] messages = mailHandler.getUncheckedMessages("INBOX");
+        Log.i(TAG, "Need to verify: " +messages.length+ " messages");
+
     }
 
     @Override
@@ -157,7 +183,7 @@ public class Inbox extends AppCompatActivity {
         public void onBindViewHolder(InboxItemViewHolder holder, int position) {
             CompactMessage message = messages[position];
             holder.subject.setText(message.subject);
-            holder.mailDescription.setText("");
+            holder.mailDescription.setText(message.shortDescription);
             holder.personName.setText(message.fromName);
             String standardFlags = message.flags[message.flags.length-1];
             int flags = Integer.decode(standardFlags);

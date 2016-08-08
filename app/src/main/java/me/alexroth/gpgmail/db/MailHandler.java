@@ -131,6 +131,49 @@ public class MailHandler {
         return success;
     }
 
+
+    /**
+     * Get a message from the download cache.
+     * @return The message, or null if it does not exist.
+     */
+    public BinaryMessage getCachedMessage(long uid, String folderName){
+        String[] projection = {
+                MailContract.MailCache.MAIL_DATA,
+        };
+        String sortOrder = MailContract.MailCache.MAIL_UID + " ASC";
+
+        Cursor c = helper.getReadableDatabase().query(MailContract.MailCache.TABLE_NAME, projection, MailContract.MailCache.MAIL_FOLDER + " LIKE ? AND "+ MailContract.MailCache.MAIL_UID +" LIKE ?", new String[] {folderName, Long.toString(uid)}, null, null, sortOrder, "1");
+        if(c.getCount() > 0){
+            c.moveToFirst();
+            BinaryMessage message = new BinaryMessage();
+            message.message = c.getBlob(c.getColumnIndex(MailContract.MailCache.MAIL_DATA));
+            message.folder = folderName;
+            message.uid = uid;
+            return message;
+        }else{
+            return null;
+        }
+    }
+
+    /**
+     * Store a message in the downloaded cache.
+     *
+     */
+    public void storeMessage(BinaryMessage message){
+        ContentValues values = new ContentValues();
+        values.put(MailContract.MailCache.MAIL_UID,message.uid);
+        values.put(MailContract.MailCache.MAIL_FOLDER,message.folder);
+        values.put(MailContract.MailCache.MAIL_DATA,message.message);
+
+        helper.getWritableDatabase().insertOrThrow(MailContract.MailCache.TABLE_NAME,null,values);
+    }
+
+
+
+    /**
+     * Check if a message exists in the database.
+     * @return
+     */
     public boolean getDoesMessageExist(long uid, String folderName){
         String[] projection = {
                 MailContract.MailEntry.MAIL_UID,
@@ -172,42 +215,51 @@ public class MailHandler {
      * @return A MessageCursor which is open and can be used to get the data out.
      */
     public MessageCursor getMessageCursorForSortOrderAndFolder(MailInfo.MailSortOrder order, String folder) {
-        String[] projection = {
-                MailContract.MailEntry.MAIL_DATE_RECEIVED,
-                MailContract.MailEntry.MAIL_SUBJECT,
-                MailContract.MailEntry.MAIL_FROM_EMAIL,
-                MailContract.MailEntry.MAIL_FROM_NAME,
-                MailContract.MailEntry.MAIL_SHORT,
-                MailContract.MailEntry.MAIL_FOLDER,
-                MailContract.MailEntry.MAIL_GPG_STATUS,
-                MailContract.MailEntry.MAIL_UID,
-                MailContract.MailEntry.MAIL_FLAGS,
-                MailContract.MailEntry.MAIL_SYNCED,
-        };
+
         String sortOrder = "";
         if (order == MailInfo.MailSortOrder.SORT_ORDER_RECENT) {
             sortOrder = MailContract.MailEntry.MAIL_DATE_RECEIVED + " DESC";
         }
-        Cursor c = helper.getReadableDatabase().query(MailContract.MailEntry.TABLE_NAME, projection, MailContract.MailEntry.MAIL_FOLDER + " LIKE ?", new String[] {folder}, null, null, sortOrder);
+        Cursor c = helper.getReadableDatabase().query(MailContract.MailEntry.TABLE_NAME, messageProjection, MailContract.MailEntry.MAIL_FOLDER + " LIKE ?", new String[] {folder}, null, null, sortOrder);
         return new MessageCursor(c);
     }
 
+    /**
+     * Get all messages that have been downloaded but have *not* been
+     * @param order
+     * @param folder
+     * @return
+     */
+    public CompactMessage[] getUncheckedMessages(String folder) {
+
+        String sortOrder = MailContract.MailEntry.MAIL_DATE_RECEIVED + " DESC";
+
+        Cursor c = helper.getReadableDatabase().query(MailContract.MailEntry.TABLE_NAME, messageProjection, MailContract.MailEntry.MAIL_GPG_STATUS + " LIKE ?", new String[] {MailInfo.GpgStatus.GPG_STATUS_CLEARSIGN_UNVERIFIED.toString()}, null, null, sortOrder);
+        return emptyCursor(new MessageCursor(c));
+    }
+
+
+    private static final String[] messageProjection = {
+            MailContract.MailEntry.MAIL_DATE_RECEIVED,
+            MailContract.MailEntry.MAIL_SUBJECT,
+            MailContract.MailEntry.MAIL_FROM_EMAIL,
+            MailContract.MailEntry.MAIL_FROM_NAME,
+            MailContract.MailEntry.MAIL_SHORT,
+            MailContract.MailEntry.MAIL_FOLDER,
+            MailContract.MailEntry.MAIL_GPG_STATUS,
+            MailContract.MailEntry.MAIL_UID,
+            MailContract.MailEntry.MAIL_FLAGS,
+            MailContract.MailEntry.MAIL_SYNCED,
+    };
+
+    /**
+     * Convenience method to get the oldest message in a given folder - used for synchronization.
+     */
     public CompactMessage getOldestMessageInFolder(String folderName){
-        String[] projection = {
-                MailContract.MailEntry.MAIL_DATE_RECEIVED,
-                MailContract.MailEntry.MAIL_SUBJECT,
-                MailContract.MailEntry.MAIL_FROM_EMAIL,
-                MailContract.MailEntry.MAIL_FROM_NAME,
-                MailContract.MailEntry.MAIL_SHORT,
-                MailContract.MailEntry.MAIL_FOLDER,
-                MailContract.MailEntry.MAIL_GPG_STATUS,
-                MailContract.MailEntry.MAIL_UID,
-                MailContract.MailEntry.MAIL_FLAGS,
-                MailContract.MailEntry.MAIL_SYNCED,
-        };
+
         String sortOrder = MailContract.MailEntry.MAIL_UID + " ASC";
 
-        Cursor c = helper.getReadableDatabase().query(MailContract.MailEntry.TABLE_NAME, projection, MailContract.MailEntry.MAIL_FOLDER + " LIKE ?", new String[] {folderName}, null, null, sortOrder, "1");
+        Cursor c = helper.getReadableDatabase().query(MailContract.MailEntry.TABLE_NAME, messageProjection, MailContract.MailEntry.MAIL_FOLDER + " LIKE ?", new String[] {folderName}, null, null, sortOrder, "1");
         MessageCursor cursor =  new MessageCursor(c);
         CompactMessage mess = cursor.getNext();
         cursor.close();
@@ -289,22 +341,16 @@ public class MailHandler {
     }
 
 
+    /**
+     * Get a single message for a given foldername and uid. Undefined behaviour if message does not exist
+     * TODO: make that defined.
+     * @return
+     */
     public CompactMessage getMessageWithFolderAndUid(String folderName, long uid){
-        String[] projection = {
-                MailContract.MailEntry.MAIL_DATE_RECEIVED,
-                MailContract.MailEntry.MAIL_SUBJECT,
-                MailContract.MailEntry.MAIL_FROM_EMAIL,
-                MailContract.MailEntry.MAIL_FROM_NAME,
-                MailContract.MailEntry.MAIL_SHORT,
-                MailContract.MailEntry.MAIL_FOLDER,
-                MailContract.MailEntry.MAIL_GPG_STATUS,
-                MailContract.MailEntry.MAIL_UID,
-                MailContract.MailEntry.MAIL_FLAGS,
-                MailContract.MailEntry.MAIL_SYNCED,
-        };
+
         String sortOrder = MailContract.MailEntry.MAIL_UID + " DESC";
 
-        Cursor c = helper.getReadableDatabase().query(MailContract.MailEntry.TABLE_NAME, projection, MailContract.MailEntry.MAIL_FOLDER + " LIKE ? AND " + MailContract.MailEntry.MAIL_UID + " LIKE ?", new String[] {folderName, Long.toString(uid)}, null, null, sortOrder, "1");
+        Cursor c = helper.getReadableDatabase().query(MailContract.MailEntry.TABLE_NAME, messageProjection, MailContract.MailEntry.MAIL_FOLDER + " LIKE ? AND " + MailContract.MailEntry.MAIL_UID + " LIKE ?", new String[] {folderName, Long.toString(uid)}, null, null, sortOrder, "1");
         MessageCursor cursor =  new MessageCursor(c);
         CompactMessage mess = cursor.getNext();
         cursor.close();
@@ -322,7 +368,16 @@ public class MailHandler {
 
         helper.getWritableDatabase().delete(MailContract.MailStatus.TABLE_NAME, MailContract.MailStatus.MAIL_FOLDER + " LIKE ?", new String[] {folder});
         helper.getWritableDatabase().delete(MailContract.MailEntry.TABLE_NAME, MailContract.MailEntry.MAIL_FOLDER + " LIKE ?", new String[] {folder});
+        helper.getWritableDatabase().delete(MailContract.MailCache.TABLE_NAME, MailContract.MailCache.MAIL_FOLDER + " LIKE ?", new String[] {folder});
 
+    }
+
+    private static CompactMessage[] emptyCursor(MessageCursor cursor){
+        CompactMessage[] messages = new CompactMessage[cursor.getCount()];
+        for (int i = 0; i < cursor.getCount(); i++) {
+            messages[i] = cursor.getNext();
+        }
+        return messages;
     }
 
     /**
@@ -334,11 +389,7 @@ public class MailHandler {
      */
     public CompactMessage[] getMessagesArrayForSortOrderAndFolder(MailInfo.MailSortOrder order, String folder) {
         MessageCursor cursor = getMessageCursorForSortOrderAndFolder(order, folder);
-        CompactMessage[] messages = new CompactMessage[cursor.getCount()];
-        for (int i = 0; i < cursor.getCount(); i++) {
-            messages[i] = cursor.getNext();
-        }
-        return messages;
+        return emptyCursor(cursor);
     }
 
     /**

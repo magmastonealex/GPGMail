@@ -39,4 +39,12 @@ public final class MailContract {
         public static final String MAIL_FOLDER = "folder";
         public static final String MAIL_MAXUID = "max_uid";
     }
+
+    public static abstract class MailCache implements BaseColumns{
+        public static final String TABLE_NAME = "mail_cache";
+        public static final String MAIL_FOLDER = "folder";
+        public static final String MAIL_UID = "uid";
+        public static final String MAIL_DATA = "data";
+    }
+
 }

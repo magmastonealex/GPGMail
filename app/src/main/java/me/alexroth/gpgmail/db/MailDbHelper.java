@@ -41,9 +41,18 @@ public class MailDbHelper extends SQLiteOpenHelper {
                     MailContract.MailStatus.MAIL_FOLDER + TEXT_TYPE+
                     " )";
 
+    private static final String SQL_CREATE_CACHE_TABLE =
+            "CREATE TABLE " + MailContract.MailCache.TABLE_NAME + " ("+
+                    MailContract.MailCache._ID + " INTEGER,"+
+                    MailContract.MailCache.MAIL_UID + LONG_TYPE + " PRIMARY KEY" + SEP +
+                    MailContract.MailCache.MAIL_FOLDER + TEXT_TYPE + SEP+
+                    MailContract.MailCache.MAIL_DATA + " BLOB"+
+                    " )";
+
 
     private static final String SQL_DELETE_MAIL_ENTRIES = "DROP TABLE IF EXISTS "+ MailContract.MailEntry.TABLE_NAME;
     private static final String SQL_DELETE_STATUS_ENTRIES = "DROP TABLE IF EXISTS "+ MailContract.MailStatus.TABLE_NAME;
+    private static final String SQL_DELETE_CACHE_ENTRIES = "DROP TABLE IF EXISTS "+ MailContract.MailCache.TABLE_NAME;
 
     public MailDbHelper(Context context){
         super(context,DATABASE_NAME,null,DATABASE_VERSION);
@@ -52,12 +61,14 @@ public class MailDbHelper extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase sqLiteDatabase) {
         sqLiteDatabase.execSQL(SQL_CREATE_MAIL_TABLE);
         sqLiteDatabase.execSQL(SQL_CREATE_STATUS_TABLE);
+        sqLiteDatabase.execSQL(SQL_CREATE_CACHE_TABLE);
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase sqLiteDatabase, int i, int i1) {
         sqLiteDatabase.execSQL(SQL_DELETE_MAIL_ENTRIES);
         sqLiteDatabase.execSQL(SQL_DELETE_STATUS_ENTRIES);
+        sqLiteDatabase.execSQL(SQL_DELETE_CACHE_ENTRIES);
         onCreate(sqLiteDatabase);
     }
 }

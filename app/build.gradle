@@ -26,7 +26,7 @@ dependencies {
     compile 'com.android.support:design:23.4.0'
     compile 'com.android.support:recyclerview-v7:23.4.0'
     compile 'com.facebook.fresco:fresco:0.12.0'
-
+    compile 'org.sufficientlysecure:openpgp-api:11.0'
 
     compile(name: 'mailcore2-android-3', ext: 'aar')
 }
