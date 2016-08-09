@@ -19,7 +19,10 @@ import android.widget.TextView;
 import com.facebook.drawee.view.SimpleDraweeView;
 import com.libmailcore.MessageFlag;
 
+import java.io.UnsupportedEncodingException;
+
 import me.alexroth.gpgmail.R;
+import me.alexroth.gpgmail.db.BinaryMessage;
 import me.alexroth.gpgmail.db.CompactMessage;
 import me.alexroth.gpgmail.db.MailDbHelper;
 import me.alexroth.gpgmail.db.MailHandler;
@@ -41,7 +44,7 @@ public class Inbox extends AppCompatActivity {
 
         ImapHandler handler = new ImapHandler("alex@magmastone.net", "3m3zwiiear0b", 993, "imappro.zoho.com");
         mailHandler = new MailHandler(getApplicationContext());
-        final ImapSynchronizer synchronizer = new ImapSynchronizer(mailHandler,handler.session);
+        final ImapSynchronizer synchronizer = new ImapSynchronizer(mailHandler, handler.session);
         final MailAdapter adapter = new MailAdapter(mailHandler);
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
@@ -62,7 +65,7 @@ public class Inbox extends AppCompatActivity {
 
                     @Override
                     public void error(String error) {
-                        Log.e(TAG, "Failed  sync: " +error);
+                        Log.e(TAG, "Failed  sync: " + error);
                     }
                 });
 
@@ -74,9 +77,9 @@ public class Inbox extends AppCompatActivity {
             @Override
             public void complete() {
                 adapter.refresh();
-                CompactMessage[] messages = mailHandler.getMessagesArrayForSortOrderAndFolder(MailInfo.MailSortOrder.SORT_ORDER_RECENT,"INBOX");
+                CompactMessage[] messages = mailHandler.getMessagesArrayForSortOrderAndFolder(MailInfo.MailSortOrder.SORT_ORDER_RECENT, "INBOX");
                 long toUid = messages[0].uid;
-                long fromUid = messages[messages.length-1].uid;
+                long fromUid = messages[messages.length - 1].uid;
                 synchronizer.fetchHeaders(fromUid, toUid, "INBOX", new ImapSynchronizer.CompletionCallback() {
                     @Override
                     public void complete() {
@@ -91,7 +94,7 @@ public class Inbox extends AppCompatActivity {
 
                     @Override
                     public void error(String error) {
-                        Log.e(TAG, "Failed headers: " +error);
+                        Log.e(TAG, "Failed headers: " + error);
                     }
                 });
             }
@@ -103,10 +106,18 @@ public class Inbox extends AppCompatActivity {
 
             @Override
             public void error(String error) {
-                Log.e(TAG, "Failed  sync: " +error);
+                Log.e(TAG, "Failed  sync: " + error);
             }
         });
 
+        BinaryMessage message = mailHandler.getCachedMessage(11975, "INBOX");
+
+        try {
+            String s = new String(message.message, "UTF-8");
+            Log.e(TAG, "Decoded message? " + s.substring(0,10));
+        } catch (UnsupportedEncodingException e) {
+            Log.e(TAG, "Unsupported encoding??");
+        }
 
         LinearLayoutManager llm = new LinearLayoutManager(this);
         RecyclerView rView = (RecyclerView) findViewById(R.id.mail);
@@ -114,11 +125,11 @@ public class Inbox extends AppCompatActivity {
         rView.setAdapter(adapter);
     }
 
-    private void doGpgVerification(){
+    private void doGpgVerification() {
         Log.i(TAG, "Starting verification...");
 
         CompactMessage[] messages = mailHandler.getUncheckedMessages("INBOX");
-        Log.i(TAG, "Need to verify: " +messages.length+ " messages");
+        Log.i(TAG, "Need to verify: " + messages.length + " messages");
 
     }
 
@@ -144,7 +155,7 @@ public class Inbox extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    private class InboxItemViewHolder extends RecyclerView.ViewHolder{
+    private class InboxItemViewHolder extends RecyclerView.ViewHolder {
         private TextView personName;
         private TextView subject;
         private TextView mailDescription;
@@ -159,40 +170,41 @@ public class Inbox extends AppCompatActivity {
         }
     }
 
-    private class MailAdapter extends RecyclerView.Adapter<InboxItemViewHolder>{
+    private class MailAdapter extends RecyclerView.Adapter<InboxItemViewHolder> {
 
         private MailHandler dbHelper;
         private CompactMessage[] messages;
 
-        public MailAdapter(MailHandler dbHelper){
+        public MailAdapter(MailHandler dbHelper) {
             this.dbHelper = dbHelper;
-            messages = dbHelper.getMessagesArrayForSortOrderAndFolder(MailInfo.MailSortOrder.SORT_ORDER_RECENT,"INBOX");
+            messages = dbHelper.getMessagesArrayForSortOrderAndFolder(MailInfo.MailSortOrder.SORT_ORDER_RECENT, "INBOX");
         }
 
         @Override
         public InboxItemViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            View v = getLayoutInflater().inflate(R.layout.row_mail_message,parent,false);
+            View v = getLayoutInflater().inflate(R.layout.row_mail_message, parent, false);
             return new InboxItemViewHolder(v);
         }
 
-        public void refresh(){
-            messages = dbHelper.getMessagesArrayForSortOrderAndFolder(MailInfo.MailSortOrder.SORT_ORDER_RECENT,"INBOX");
+        public void refresh() {
+            messages = dbHelper.getMessagesArrayForSortOrderAndFolder(MailInfo.MailSortOrder.SORT_ORDER_RECENT, "INBOX");
             notifyDataSetChanged();
         }
+
         @Override
         public void onBindViewHolder(InboxItemViewHolder holder, int position) {
             CompactMessage message = messages[position];
             holder.subject.setText(message.subject);
             holder.mailDescription.setText(message.shortDescription);
             holder.personName.setText(message.fromName);
-            String standardFlags = message.flags[message.flags.length-1];
+            String standardFlags = message.flags[message.flags.length - 1];
             int flags = Integer.decode(standardFlags);
-            if((flags & MessageFlag.MessageFlagSeen) != 0){
-                holder.subject.setTextColor(Color.argb(255,0xAA,0xAA,0xAA));
-                holder.personName.setTextColor(Color.argb(255,0xAA,0xAA,0xAA));
-            }else{
-                holder.subject.setTextColor(Color.argb(255,0,0,0));
-                holder.personName.setTextColor(Color.argb(255,0,0,0));
+            if ((flags & MessageFlag.MessageFlagSeen) != 0) {
+                holder.subject.setTextColor(Color.argb(255, 0xAA, 0xAA, 0xAA));
+                holder.personName.setTextColor(Color.argb(255, 0xAA, 0xAA, 0xAA));
+            } else {
+                holder.subject.setTextColor(Color.argb(255, 0, 0, 0));
+                holder.personName.setTextColor(Color.argb(255, 0, 0, 0));
             }
         }
 
