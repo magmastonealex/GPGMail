@@ -20,6 +20,7 @@ import com.facebook.drawee.view.SimpleDraweeView;
 import com.libmailcore.MessageFlag;
 
 import java.io.UnsupportedEncodingException;
+import java.util.HashMap;
 
 import me.alexroth.gpgmail.R;
 import me.alexroth.gpgmail.db.BinaryMessage;
@@ -29,6 +30,8 @@ import me.alexroth.gpgmail.db.MailHandler;
 import me.alexroth.gpgmail.db.MailInfo;
 import me.alexroth.gpgmail.mailfetchers.ImapHandler;
 import me.alexroth.gpgmail.mailfetchers.ImapSynchronizer;
+import me.alexroth.gpgmail.mailparse.HeaderSplitter;
+import me.alexroth.gpgmail.mailparse.MimePart;
 
 public class Inbox extends AppCompatActivity {
 
@@ -111,10 +114,15 @@ public class Inbox extends AppCompatActivity {
         });
 
         BinaryMessage message = mailHandler.getCachedMessage(11975, "INBOX");
-
         try {
             String s = new String(message.message, "UTF-8");
-            Log.e(TAG, "Decoded message? " + s.substring(0,10));
+            MimePart messagePart = new MimePart(s);
+            Log.e(TAG, "messagePart type: "  + messagePart.contentType);
+            Log.e(TAG, "params: ");
+            for(String key : messagePart.contentParams.keySet()){
+                Log.e(TAG, " "+key+":"+messagePart.contentParams.get(key));
+            }
+
         } catch (UnsupportedEncodingException e) {
             Log.e(TAG, "Unsupported encoding??");
         }
