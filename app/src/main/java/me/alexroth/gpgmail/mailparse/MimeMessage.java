@@ -6,7 +6,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
- * 
+ * Represents a complete top-level MIME message.
+ * Note that it does no multipart processing, it just lets you verify that this message is a MIME message, and looks up the content type for you.
+ * Pass the same text to a MimePart in order to do further processing.
+ *
+ * It also exposes common fields for you to use - subject, from, to, etc, unlike MimePart.
  *
  * @author Alex Roth
  */
@@ -16,8 +20,10 @@ public class MimeMessage {
     public String contentType;
     public HashMap<String, String> contentParams = new HashMap<>();
 
+    public String rawMessageContent;
 
     public MimeMessage(String message) {
+        this.rawMessageContent = message;
         this.messageContent = HeaderSplitter.getMessageBody(message);
         this.headers = HeaderSplitter.getMessageHeaders(message);
         if (headers.containsKey("mime-version") && headers.get("mime-version").equals("1.0")) {
@@ -27,8 +33,9 @@ public class MimeMessage {
         } else {
             throw new NotMimeException(headers.get("MIME-Version"));
         }
+    }
 
-        // For single-part messages here we need to perform decoding to get it into byte[] or String form which is displayable.
-        // For now, we just parse a multipart message to get the signed part and the signature, and use those.
+    public MimePart recreateAsMimePart(){
+       return new MimePart(this.rawMessageContent);
     }
 }

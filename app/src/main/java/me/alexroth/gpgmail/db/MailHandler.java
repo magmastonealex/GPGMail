@@ -284,9 +284,7 @@ public class MailHandler {
         String sortOrder = MailContract.MailEntry.MAIL_FOLDER + " DESC";
 
         Cursor c = helper.getReadableDatabase().query(MailContract.MailStatus.TABLE_NAME,projection, MailContract.MailStatus.MAIL_FOLDER+" LIKE ?", new String[] {folderName},null,null,sortOrder);
-        for(String col : c.getColumnNames()){
-            Log.e("MailHandler", "AllCs:" + col);
-        }
+
 
         if(c.getCount() > 0) {
             c.moveToFirst();
