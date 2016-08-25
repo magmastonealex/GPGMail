@@ -24,6 +24,8 @@ public class MailInfo {
         GPG_STATUS_ENCRYPTED,
         GPG_STATUS_CLEARSIGN_VALID,
         GPG_STATUS_UNKNOWN,
+        GPG_STATUS_CLEARSIGN_INVALID,
+        GPG_STATUS_CLEARSIGN_MISSING,
     }
 
     /**

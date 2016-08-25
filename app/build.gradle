@@ -17,6 +17,14 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    splits {
+        abi {
+            enable true
+            reset()
+            include "armeabi-v7a", "x86"
+            universalApk false
+        }
+    }
 }
 
 dependencies {
@@ -29,4 +37,6 @@ dependencies {
     compile 'org.sufficientlysecure:openpgp-api:11.0'
 
     compile(name: 'mailcore2-android-3', ext: 'aar')
+
+
 }

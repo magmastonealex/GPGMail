@@ -396,6 +396,8 @@ public class ImapSynchronizer {
                                     }
                                     if (mimeType.toLowerCase().equals("multipart/encrypted")) {
                                         Log.e(TAG, "  Encrypted message, can't process, but cached.");
+                                        dbMessage.gpgStatus = MailInfo.GpgStatus.GPG_STATUS_ENCRYPTED;
+                                        dbHandler.updateMessage(dbMessage, dbMessage.uid, dbMessage.folder);
                                     } else {
                                         parseMessageBytesUpdateMessage(toCache, message, dbMessage);
 

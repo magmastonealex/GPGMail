@@ -15,6 +15,7 @@ import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 
@@ -50,6 +51,7 @@ public class Inbox extends AppCompatActivity {
     private static final String TAG = "InboxActivity";
     MailHandler mailHandler;
     SimplePgpWrapper pgpWrapper;
+    MailAdapter adapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,33 +63,56 @@ public class Inbox extends AppCompatActivity {
         ImapHandler handler = new ImapHandler("alex@magmastone.net", "3m3zwiiear0b", 993, "imappro.zoho.com");
         mailHandler = new MailHandler(getApplicationContext());
         final ImapSynchronizer synchronizer = new ImapSynchronizer(mailHandler, handler.session);
-        final MailAdapter adapter = new MailAdapter(mailHandler);
+        adapter = new MailAdapter(mailHandler);
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                synchronizer.sync("INBOX", new ImapSynchronizer.CompletionCallback() {
-                    @Override
-                    public void complete() {
-                        adapter.refresh();
+        if(fab == null){
+            Log.e(TAG, "something's messed up");
+        }else {
+            fab.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    synchronizer.sync("INBOX", new ImapSynchronizer.CompletionCallback() {
+                        @Override
+                        public void complete() {
+                            adapter.refresh();
+                            CompactMessage[] messages = mailHandler.getMessagesArrayForSortOrderAndFolder(MailInfo.MailSortOrder.SORT_ORDER_RECENT, "INBOX");
+                            long toUid = messages[0].uid;
+                            long fromUid = messages[messages.length - 1].uid;
+                            synchronizer.fetchHeaders(fromUid, toUid, "INBOX", new ImapSynchronizer.CompletionCallback() {
+                                @Override
+                                public void complete() {
+                                    Log.i(TAG, "Header fetch complete");
+                                    doGpgVerification();
+                                }
 
-                    }
+                                @Override
+                                public void progress() {
+                                    adapter.refresh();
+                                }
 
-                    @Override
-                    public void progress() {
+                                @Override
+                                public void error(String error) {
+                                    Log.e(TAG, "Failed headers: " + error);
+                                }
+                            });
+                        }
 
-                    }
+                        @Override
+                        public void progress() {
 
-                    @Override
-                    public void error(String error) {
-                        Log.e(TAG, "Failed  sync: " + error);
-                    }
-                });
+                        }
+
+                        @Override
+                        public void error(String error) {
+                            Log.e(TAG, "Failed  sync: " + error);
+                        }
+                    });
 
 
-            }
-        });
+                }
+            });
+        }
         pgpWrapper = new SimplePgpWrapper(getApplicationContext());
 
         synchronizer.sync("INBOX", new ImapSynchronizer.CompletionCallback() {
@@ -128,7 +153,6 @@ public class Inbox extends AppCompatActivity {
         });
 
 
-
         BinaryMessage message = mailHandler.getCachedMessage(12054, "INBOX");
 
 
@@ -166,6 +190,8 @@ public class Inbox extends AppCompatActivity {
             Log.i(TAG, "verifiying: " + message.subject);
             runVerificationIntent(vIntent);
 
+        } else {
+            adapter.refresh();
         }
     }
 
@@ -223,7 +249,7 @@ public class Inbox extends AppCompatActivity {
 
     }
 
-    private void handleSignatureCompletion(Intent result){
+    private void handleSignatureCompletion(Intent result) {
 
         Log.e(TAG, "Returned from verification intent.");
 
@@ -238,7 +264,30 @@ public class Inbox extends AppCompatActivity {
         if (rescode == OpenPgpApi.RESULT_CODE_SUCCESS) {
 
             OpenPgpSignatureResult sigResult = result.getParcelableExtra(OpenPgpApi.RESULT_SIGNATURE);
-            Log.e(TAG, "Verification complete: " + sigResult);
+            if (sigResult.getResult() == OpenPgpSignatureResult.RESULT_VALID_CONFIRMED) {
+                boolean matchFound = false;
+                for (String uid : sigResult.getUserIds()) {
+                    String email = uid.split("<", 2)[1].split(">", 2)[0];
+                    String checkEmail = currentMessage.fromEmail.split("<", 2)[1].split(">", 2)[0];
+                    Log.e(TAG, " From: " + checkEmail.toLowerCase() + " email: " + email.toLowerCase());
+                    if (email.toLowerCase().equals(checkEmail.toLowerCase())) {
+                        matchFound = true;
+                    }
+                }
+                if (matchFound) {
+                    Log.i(TAG, "Found matching address!");
+                    currentMessage.gpgStatus = MailInfo.GpgStatus.GPG_STATUS_CLEARSIGN_VALID;
+                } else {
+                    currentMessage.gpgStatus = MailInfo.GpgStatus.GPG_STATUS_CLEARSIGN_INVALID;
+                }
+
+            } else if (sigResult.getResult() == OpenPgpSignatureResult.RESULT_KEY_MISSING) {
+                currentMessage.gpgStatus = MailInfo.GpgStatus.GPG_STATUS_CLEARSIGN_MISSING;
+            } else {
+                currentMessage.gpgStatus = MailInfo.GpgStatus.GPG_STATUS_CLEARSIGN_INVALID;
+            }
+            Log.e(TAG, "Setting GPG status for " + currentMessage.uid + " to " + currentMessage.gpgStatus.toString());
+            mailHandler.updateMessage(currentMessage, currentMessage.uid, currentMessage.folder);
 
             //Next message.
             doGpgVerification();
@@ -261,7 +310,7 @@ public class Inbox extends AppCompatActivity {
 
                 //TODO: this is rather dangerous, shortening the long messageUid to an int.
                 //Realistically, probably not a problem. But we may wind up with someone with a stupidly large mailbox at some point.
-                startIntentSenderForResult(pi.getIntentSender(),(int)messageUid,null,0,0,0);
+                startIntentSenderForResult(pi.getIntentSender(), (int) messageUid, null, 0, 0, 0);
 
             } catch (IntentSender.SendIntentException e) {
                 Log.e(TAG, "SendIntentException", e);
@@ -271,12 +320,13 @@ public class Inbox extends AppCompatActivity {
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if(resultCode == RESULT_OK){
+        if (resultCode == RESULT_OK) {
             runVerificationIntent(data);
-        }else{
+        } else {
             Log.e(TAG, "PGP intent failed!!!");
         }
     }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
@@ -304,6 +354,8 @@ public class Inbox extends AppCompatActivity {
         private TextView subject;
         private TextView mailDescription;
         private SimpleDraweeView profilePic;
+        private ImageView signedStatus;
+        private ImageView encryptStatus;
 
         public InboxItemViewHolder(View itemView) {
             super(itemView);
@@ -311,6 +363,8 @@ public class Inbox extends AppCompatActivity {
             subject = (TextView) itemView.findViewById(R.id.subject);
             mailDescription = (TextView) itemView.findViewById(R.id.description);
             profilePic = (SimpleDraweeView) itemView.findViewById(R.id.profilePic);
+            signedStatus = (ImageView) itemView.findViewById(R.id.signStatus);
+            encryptStatus = (ImageView) itemView.findViewById(R.id.encStatus);
         }
     }
 
@@ -337,7 +391,7 @@ public class Inbox extends AppCompatActivity {
 
         @Override
         public void onBindViewHolder(InboxItemViewHolder holder, int position) {
-            CompactMessage message = messages[position];
+            final CompactMessage message = messages[position];
             holder.subject.setText(message.subject);
             holder.mailDescription.setText(message.shortDescription);
             holder.personName.setText(message.fromName);
@@ -350,6 +404,35 @@ public class Inbox extends AppCompatActivity {
                 holder.subject.setTextColor(Color.argb(255, 0, 0, 0));
                 holder.personName.setTextColor(Color.argb(255, 0, 0, 0));
             }
+
+            if(message.gpgStatus == MailInfo.GpgStatus.GPG_STATUS_CLEARSIGN_INVALID){
+                holder.signedStatus.setImageResource(R.drawable.ic_new_releases_black_24dp);
+            }else if(message.gpgStatus == MailInfo.GpgStatus.GPG_STATUS_CLEARSIGN_MISSING){
+                holder.signedStatus.setImageResource(R.drawable.ic_person_add_black_24dp);
+            }else if(message.gpgStatus == MailInfo.GpgStatus.GPG_STATUS_CLEARSIGN_VALID){
+                holder.signedStatus.setImageResource(R.drawable.ic_verified_user_black_24dp);
+            }else {
+                holder.signedStatus.setImageResource(R.drawable.ic_security_black_24dp);
+            }
+
+            if(message.gpgStatus == MailInfo.GpgStatus.GPG_STATUS_ENCRYPTED){
+                holder.encryptStatus.setImageResource(R.drawable.ic_lock_black_24dp);
+
+            }else{
+                holder.encryptStatus.setImageResource(R.drawable.ic_lock_open_black_24dp);
+
+            }
+
+            holder.itemView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    Intent i = new Intent(Inbox.this,MessageActivity.class);
+                    i.putExtra(MessageActivity.UID_TAG, message.uid);
+                    i.putExtra(MessageActivity.FOLDER_TAG, message.folder);
+                    Inbox.this.startActivity(i);
+                }
+            });
+
         }
 
         @Override

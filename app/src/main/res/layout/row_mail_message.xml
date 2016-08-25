@@ -27,7 +27,7 @@
         android:id="@+id/signStatus"
         android:layout_width="24dp"
         android:layout_height="24dp"
-        android:src="@drawable/ic_new_releases_black_24dp"
+        android:src="@drawable/ic_security_black_24dp"
         android:layout_alignTop="@+id/sender"
         android:layout_alignParentRight="true"/>
     <ImageView
